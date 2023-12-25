@@ -1,5 +1,5 @@
 # PokemonBattleAI
-CS486 AI Project Pokemon Battle Tree Search Algorithms 
+CSCI5511 AI Project Pokemon Battle Tree Search Algorithms 
 
 Pokemon Specs
 
@@ -14,6 +14,7 @@ Move IDs found in `moves.json`, Pokemon numbers found `pokemon.json`. Venusaur.f
 
 # Status updates of project
 ```
+December 21: Added Minimax agent to Trainer class
 July 9: Added effects for recharging moves/tri-attack/curse/dragon rage/sonic boom, added badly poison mechanics
 July 8: Implemented various moves and move effects for semi-common moves
 July 7: Finished 6v6 implementation (did some testing battles). Updated input/output interface.

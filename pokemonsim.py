@@ -750,7 +750,7 @@ class Pokemon:
 
 class Trainer:
     #pokemons is array of pokemon team
-    def __init__(self, pokemons, name, depth = 3):
+    def __init__(self, pokemons, name, depth = 5):
         if not(len(pokemons) >= 6):
             print('Can only have team of up to 6 Pokemon')
         elif len(pokemons) == 0:
@@ -773,6 +773,9 @@ class Trainer:
         self.max_play_depth = depth
 
         self.last_move = None
+
+        self.alpha = -float('inf')
+        self.beta = -self.alpha
 
         # Trainer2 = Trainer2
 
@@ -1580,6 +1583,191 @@ class Trainer:
                 print('Match lost placeholder')
                 quit()
 
+    def alphabeta(self, depth, action, is_maximizing, Trainer2):
+        print('\n--- NODE DEPTH: {depth} ---'.format(depth = depth))
+        if self.lost_match() or Trainer2.lost_match():
+            if self.lost_match():
+                return -self.win_val
+            else:
+                return self.win_val
+        elif depth == 0:
+            return self.evaluate(action, Trainer2)
+
+        if is_maximizing:
+            best_val = -float('inf')
+            for move in self.active_pokemon.moves:
+                val = self.alphabeta(depth - 1, move, False, Trainer2)
+                best_val = max(best_val, val)
+                self.alpha = max(self.alpha, best_val)
+                if self.beta <= self.alpha:
+                    break
+            return best_val
+        else:
+            best_val = float('inf')
+            for move in self.active_pokemon.moves:
+                val = self.alphabeta(depth - 1, move, True, Trainer2)
+                best_val = min(best_val, val)
+                self.beta = min(self.beta, best_val)
+                if self.beta <= self.alpha:
+                    break
+            return best_val
+
+    def get_choice_ab(self, Trainer2):
+        self.verify_fainted_switch()
+        choosen_action = None
+        while choosen_action == None:
+            # possible_choices = self.get_possible_choices()
+            print("\nMoves for " + self.active_pokemon.name)
+            for i, x in enumerate(self.active_pokemon.moves):
+                print(i+1, movejson[x]['name'])
+
+            # if len(possible_choices) >= 1:
+            best_action = self.active_pokemon.moves[0]
+            best_val = -float('inf')
+            for action in self.active_pokemon.moves:
+                val = self.alphabeta(self.max_play_depth, action, True, Trainer2)
+                if val >= best_val:
+                    best_action = action
+                    best_val = val
+                
+                choosen_action = best_action
+                self.last_move = choosen_action
+                print(choosen_action)  
+
+    def alphabetaattack(self, Trainer2, index):
+        switched_flag = 0
+        if self.active_pokemon.recharge != -1:
+            print(self.active_pokemon.name + " has to recharge!")
+            self.active_pokemon.recharge = -1
+            return switched_flag
+
+        if self.active_pokemon.check_attack_status(movejson[self.active_pokemon.moves[index-1]]):
+            self.active_pokemon.attack_move(Trainer2.active_pokemon, index)
+            if self.active_pokemon.check_faint():
+                self.update_fainted_pokemon()
+                if self.lost_match():
+                    print('Match lost placeholder')
+                    quit()
+                else:
+                    i = self.get_switch_pokemon_choice()
+                    self.switch_pokemon(i, 1)
+            if Trainer2.active_pokemon.check_faint():
+                Trainer2.update_fainted_pokemon()
+                switched_flag = 1
+                if Trainer2.lost_match():
+                    print('Match lost placeholder')
+                    quit()
+                else:
+                    # Always 1 for bot
+                    i = 1
+                    Trainer2.switch_pokemon(i, 1)
+
+        return switched_flag  
+    
+    def alphabetafight(self, Trainer2):
+
+        # Initial battle text
+        print("-----POKEMONE BATTLE (LVL 50)-----")
+        trainer1text = self.name + " ( "
+        trainer2text = Trainer2.name + "  ( "
+        for p in self.pokemons:
+            trainer1text += p.name + " "
+        for p2 in Trainer2.pokemons:
+            trainer2text += p2.name + " "
+        trainer1text += " )"
+        trainer2text += " )"
+        print(trainer1text)
+        print("-----------------VS----------------")
+        print(trainer2text)
+
+        time.sleep(1)
+
+        turn_number = 0
+        while not(self.lost_match()) or not(Trainer2.lost_match()):
+            index1 = index2 = pindex1 = pindex2 = \
+                player1choice = -10
+            player2choice = 1
+                
+            turn_number += 1
+            self.active_pokemon.flinch = Trainer2.active_pokemon.flinch = False
+
+            if self.active_pokemon.recharge == -1:
+                #Trainer 1 makes their move
+                player1choice = int(input(self.getpromptstring()))
+                if player1choice == 1:
+                    print("\nMoves for " + self.active_pokemon.name)
+                    for i, x in enumerate(self.active_pokemon.moves):
+                        print(i+1, movejson[x]['name'])
+                    index1 = int(input('Pick a move: '))
+                elif player1choice == 2 and len(self.alive_pokemon) > 1:
+                    pindex1 = self.get_switch_pokemon_choice()
+                else:
+                    print(self.name + ' ran away...took the L')
+                    exit()
+            else:
+                player1choice = 1
+                index1 = 1
+
+            if Trainer2.active_pokemon.recharge == -1:
+                #Trainer 2 makes their move
+                if player2choice == 1:
+                    print("Bot Chooses Action to Fight")
+                    Trainer2.get_choice_ab(self)
+                    index2 = Trainer2.active_pokemon.moves.index(Trainer2.last_move)
+                elif player2choice == 2 and len(Trainer2.alive_pokemon) > 1:
+                    # 1 to be default for Bot
+                    # pindex2 = Trainer2.get_switch_pokemon_choice()
+                    pindex2 = 1
+                else:
+                    print(Trainer2.name + ' ran away...took the L')
+                    exit()
+            else:
+                player2choice = 1
+                index2 = 1
+
+            if player1choice == 2 and player2choice == 2: #both players switch out
+                self.switch_pokemon(pindex1)
+                Trainer2.switch_pokemon(pindex2)
+            elif player1choice == 2: #only player2 attacks
+                self.switch_pokemon(pindex1)
+                Trainer2.alphabetaattack(self, index2)
+            elif player2choice == 2: #player1 attacks
+                Trainer2.switch_pokemon(pindex2)
+                self.alphabetaattack(Trainer2, index1)
+            else: #both attacks
+                #if outspeed opponent (for equal priority) or your move has higher priority, you go first. Otherwise opponent goes first. 50/50 if speed tie.
+                pokemon1speed = self.active_pokemon.curspeed * stat_stage_multiplier[self.active_pokemon.speedstage]
+                pokemon2speed = Trainer2.active_pokemon.curspeed * stat_stage_multiplier[Trainer2.active_pokemon.speedstage]
+                if ((movejson[self.active_pokemon.moves[index1-1]]['priority'] == movejson[Trainer2.active_pokemon.moves[index2-1]]['priority']) \
+                    and ((pokemon1speed > pokemon2speed) or (pokemon1speed == pokemon2speed and random.random() > .5))) \
+                    or (movejson[self.active_pokemon.moves[index1-1]]['priority'] > movejson[Trainer2.active_pokemon.moves[index2-1]]['priority']):
+                    #self trainer attacks first; if it kills, then trainer2 can't attack
+                    switch_flag = self.attack(Trainer2, index1)
+                    if switch_flag == 0:
+                        Trainer2.alphabetaattack(self, index2)
+                else:
+                    #trainer2 attacks first
+                    switch_flag = Trainer2.attack(self, index2)
+                    if switch_flag == 0:
+                        self.alphabetaattack(Trainer2, index1)
+
+            ### status damage
+            self.active_pokemon.apply_status_damage()
+            Trainer2.active_pokemon.apply_status_damage()
+
+            if self.active_pokemon.check_faint():
+                self.update_fainted_pokemon()
+                if self.lost_match():
+                    print('Match lost placeholder')
+                    quit()
+                else:
+                    i = self.get_switch_pokemon_choice()
+                    self.switch_pokemon(i, 1)
+            if Trainer2.active_pokemon.check_faint():
+                Trainer2.verify_fainted_switch()
+            if Trainer2.lost_match():
+                print('Match lost placeholder')
+                quit()
 
 if __name__ == '__main__':
     with open('moves.json') as json_file:
@@ -1655,7 +1843,8 @@ if __name__ == '__main__':
     greedy = False
     smartgreedy = False
     baseCode = False
-    minimax = True
+    minimax = False
+    alphabeta = True
     # Cofig for greedy approach
     if greedy:
         garyoak = Trainer(team1, 'Gary')
@@ -1678,3 +1867,10 @@ if __name__ == '__main__':
         garyoak = Trainer(team1, 'Gary')
         ashketchum = Trainer(team2, 'Ash')
         garyoak.minimaxfight(ashketchum)
+
+    if alphabeta:
+        garyoak = Trainer(team1, 'Gary')
+        ashketchum = Trainer(team2, 'Ash')
+        garyoak.alphabetafight(ashketchum)
+
+    

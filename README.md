@@ -1,5 +1,4 @@
 # PokemonBattleAI
-CSCI5511 AI Project Pokemon Battle Tree Search Algorithms 
 
 Pokemon Specs
 
